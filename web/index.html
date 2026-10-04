@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QuakeScope — 揺れ検知アラーム（ブラウザー版）</title>
+<meta name="description" content="置いた場所の揺れを測り、気象庁の計測震度に近い計算で「震度相当」を出す揺れ検知アラーム。本体と同じ判定エンジンをブラウザーで動かし、見本の揺れやスマホのセンサーで試せます。">
+<meta name="theme-color" content="#0a1016" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f7f5f0" media="(prefers-color-scheme: light)">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css">
+<script>(function(){try{var t=localStorage.getItem('qs-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="./"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="8"/><path d="M4 17h5l2-6 3 12 3-15 3 13 2-4h6"/></svg>QuakeScope</a>
+  <span class="sub">揺れ検知アラーム・ブラウザー版</span>
+  <nav class="tools">
+    <a href="https://github.com/haru-ki417/QuakeScope" target="_blank" rel="noopener">GitHub</a>
+    <button id="theme" class="icon" type="button" aria-label="明るさを切り替える"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9A7 7 0 0 1 12 3z"/></svg></button>
+  </nav>
+</header>
+
+<main>
+  <section class="stage" aria-label="いまの揺れ">
+    <div class="state" id="state" data-level="0">
+      <div class="state-top"><span class="chip" id="levelchip">準備中</span><span class="clock" id="clock">0.0 秒</span></div>
+      <div class="shindo"><small>震度相当</small><b id="shindo">—</b></div>
+      <dl class="nums">
+        <div><dt>いま</dt><dd id="inow">—</dd></div>
+        <div title="この揺れの最大"><dt>最大</dt><dd id="imax">—</dd></div>
+        <div><dt>最大加速度</dt><dd id="pga">—</dd></div>
+      </dl>
+      <p class="said" id="said" aria-live="polite">見本の揺れを選ぶか、スマホのセンサーで測ってください。</p>
+    </div>
+
+    <figure class="device" aria-label="本体の画面（再現）">
+      <div class="case">
+        <canvas id="oled" width="128" height="64" aria-label="本体の小さな画面"></canvas>
+        <div class="leds"><span class="led" id="led"></span><span class="spk" id="spk" aria-hidden="true"></span></div>
+      </div>
+      <figcaption>本体の画面（同じプログラムで描いたもの）</figcaption>
+    </figure>
+
+    <div class="trace">
+      <div class="trace-head"><b>揺れの波形</b><span>重力を引いた 3 方向（gal）・直近 30 秒</span>
+        <span class="legend"><i class="lx"></i>X <i class="ly"></i>Y <i class="lz"></i>Z（上下）</span></div>
+      <canvas id="wave" height="220"></canvas>
+      <div class="meter" aria-hidden="true"><div class="scale" id="scale"></div><span class="needle" id="needle"></span></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="tabs" role="tablist">
+      <button role="tab" aria-selected="true" data-tab="sim">見本の揺れ</button>
+      <button role="tab" aria-selected="false" data-tab="phone">スマホで測る</button>
+      <button role="tab" aria-selected="false" data-tab="how">しくみと精度</button>
+    </div>
+
+    <div class="tab" id="tab-sim">
+      <p class="lead">数式で作った揺れ（本物の地震の記録ではありません）を、本体と同じ判定エンジンに流します。地震と、地震ではない振動の違いを確かめられます。</p>
+      <div class="scenes" id="scenes"></div>
+      <div class="row">
+        <label class="sw"><input type="checkbox" id="fast"> 3 倍速で流す</label>
+        <label class="sw"><input type="checkbox" id="sound" checked> 警報音を鳴らす</label>
+        <button class="btn ghost" id="stop" type="button" disabled>止める</button>
+      </div>
+      <div class="result" id="result" hidden></div>
+    </div>
+
+    <div class="tab" id="tab-phone" hidden>
+      <p class="lead">スマホの加速度センサーを使って、この場の揺れを測ります。机など、動かない平らな場所に置いてください。最初の 3 秒で置かれた向きを測ります。</p>
+      <div class="row"><button class="btn" id="phone" type="button">測り始める</button><span class="hint" id="phonehint"></span></div>
+      <p class="note">スマホのセンサーは本体のセンサーより雑音が多く、毎秒 60 回ほどしか測れないため、本体より小さな揺れは分かりにくくなります。値は端末の中だけで使い、どこにも送りません。</p>
+    </div>
+
+    <div class="tab" id="tab-how" hidden>
+      <div class="how">
+        <article>
+          <h3>震度相当の計算</h3>
+          <p>気象庁の「計測震度」は、3 方向の加速度に周期の効果を考えたフィルターをかけ、合わせた大きさが合計 0.3 秒以上になる値 <i>a</i> から <i>I</i> = 2 log<sub>10</sub> <i>a</i> + 0.94 で求めます。本体は、このフィルターを 100 Hz で動く IIR フィルター（2 次の区間 × 5）で近似し、揺れている最中に毎秒 10 回計算します。</p>
+          <canvas id="gain" height="200"></canvas>
+          <p class="note">線: 気象庁のフィルターの式／点線: 本体の近似。0.3〜12 Hz での差は最大 0.55 dB（震度にして約 0.06）。</p>
+        </article>
+        <article>
+          <h3>揺れ始めと、誤報の防ぎ方</h3>
+          <ul>
+            <li><b>揺れ始め（P 波）</b>: 直近 0.5 秒と 10 秒の揺れの比（STA/LTA）が 3 倍を超えたら、揺れの始まりの候補にします。</li>
+            <li><b>一瞬の衝撃は除く</b>: ドアの開け閉めや足音は、直近の最大の 1/4 を超える時間が短い。同じ強さの揺れが 0.3 秒以上続いたときだけ揺れとみなします。</li>
+            <li><b>雑音に合わせる</b>: 本体のセンサー（MPU6050）は雑音が大きく、置いておくだけでも震度 1.5 相当ほどの値が出ます。平常時の値を測り続け、それより 0.6 以上大きい揺れだけを揺れとみなします。そのため雑音で鳴ることはありませんが、震度 2 相当以下の小さな揺れは見逃すことがあります。</li>
+            <li><b>レベル</b>: 震度 1 相当で「揺れ検知」（短い音）、震度 3 相当で「注意」（警報音・通知）、震度 5 弱相当で「警報」（強い警報音・通知）。1 回の揺れで同じレベルの通知は 1 度だけ。</li>
+          </ul>
+        </article>
+        <article class="wide">
+          <h3>精度を確かめる</h3>
+          <p>見本の地震（近い・遠い、計測震度 1.0〜6.5、種を変えて 48 本）で、本体の推定とフィルターを周波数領域でかけた計測震度を比べます。この場で計算します。</p>
+          <button class="btn" id="verify" type="button">確かめる</button>
+          <div id="verifyout"></div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="side">
+    <div class="box">
+      <h3>スマホに届く通知</h3>
+      <div class="phone" id="inbox"><p class="empty">震度 3 相当以上の揺れで、ここに通知が届きます（本体では LINE・Telegram・Discord・メール）。</p></div>
+      <details><summary>LINE に送る中身（JSON）</summary><pre id="json">—</pre></details>
+    </div>
+    <div class="box">
+      <h3>記録</h3>
+      <ol class="log" id="log"><li class="empty">まだありません</li></ol>
+    </div>
+    <div class="box">
+      <h3>設定</h3>
+      <label>注意（警報音・通知）<select id="ic"><option value="1.5">震度 2 相当〜</option><option value="2.5" selected>震度 3 相当〜</option><option value="3.5">震度 4 相当〜</option></select></label>
+      <label>警報（強い警報音）<select id="iw"><option value="3.5">震度 4 相当〜</option><option value="4.5" selected>震度 5 弱相当〜</option><option value="5.0">震度 5 強相当〜</option></select></label>
+      <label>置く場所の名前<input id="place" value="リビング" maxlength="20"></label>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <p>本機の値は、置いた場所で測った揺れからの推定（参考値）です。気象庁の発表する震度・緊急地震速報ではありません。強い揺れを感じたら、まず身の安全を確保してください。</p>
+  <p>QuakeScope — <a href="https://github.com/haru-ki417/QuakeScope" target="_blank" rel="noopener">ソースコード（MIT License）</a>・本体の作り方は GitHub の docs にあります。</p>
+</footer>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

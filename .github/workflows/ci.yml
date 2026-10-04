@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    name: 判定エンジンのテスト
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: テスト（警告もエラーにする）
+        run: |
+          cd core/tests
+          c++ -std=c++17 -O2 -Wall -Wextra -Werror -I../src test_core.cpp ../src/*.cpp -o test_core
+          ./test_core
+      - name: numpy で別に書いた計測震度の計算と比べる
+        run: |
+          pip install numpy
+          c++ -std=c++17 -O2 -Icore/src core/tools/qs_cli.cpp core/src/*.cpp -o qs_cli
+          python3 core/tools/check_exact.py ./qs_cli
+      - name: ファームウェアの写しと、設定画面の埋め込みが最新か
+        run: |
+          python3 tools/sync_core.py --check
+          python3 tools/embed_web.py --check
+
+  firmware:
+    name: ESP32 のファームウェアをビルド
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v2
+      - name: ESP32 のボードとライブラリを入れる
+        run: |
+          arduino-cli config init
+          arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32
+          arduino-cli lib install "Adafruit SSD1306"
+      - name: ビルド
+        run: arduino-cli compile --fqbn esp32:esp32:esp32:PartitionScheme=min_spiffs --warnings default firmware/QuakeScope
+
+  wasm:
+    name: ブラウザー版の WebAssembly をビルド
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: wasi-sdk を入れる
+        run: |
+          curl -sSL https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-27/wasi-sdk-27.0-x86_64-linux.tar.gz | tar xz -C "$RUNNER_TEMP"
+      - name: ビルド
+        run: WASI_SDK="$RUNNER_TEMP/wasi-sdk-27.0-x86_64-linux" web/build_wasm.sh
+
+  case:
+    name: ケースの STL を作り直せるか
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 配置とケースを作る
+        run: |
+          python3 tools/hw/layout.py
+          python3 tools/hw/schematic.py
+          cd hardware/case && npm install --no-audit --no-fund && node case.mjs

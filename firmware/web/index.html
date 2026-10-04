@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QuakeScope</title>
+<style>
+:root{--bg:#f6f4f2;--panel:#fff;--ink:#1d1b1e;--muted:#6f686c;--line:#e6dedb;--acc:#c9303b;--ok:#12865a;--det:#c98a00;--cau:#d9661a;--war:#d0202d;--chip:#f1ecea}
+@media (prefers-color-scheme:dark){:root{--bg:#0b141a;--panel:#111f28;--ink:#e3edf0;--muted:#8aa0a8;--line:#1f3542;--acc:#3ee08a;--ok:#3ee08a;--chip:#162a35}}
+*{box-sizing:border-box}body{margin:0;font:15px/1.7 system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;background:var(--bg);color:var(--ink)}
+header{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--panel);position:sticky;top:0;z-index:2}
+header b{font-size:17px}header small{color:var(--muted);margin-left:auto;text-align:right;line-height:1.3}
+nav{display:flex;gap:4px;padding:8px 12px;overflow-x:auto;background:var(--panel);border-bottom:1px solid var(--line)}
+nav button{border:0;background:none;color:var(--muted);padding:6px 12px;border-radius:99px;font:inherit;cursor:pointer;white-space:nowrap}
+nav button.on{background:var(--ink);color:var(--bg)}
+main{max-width:760px;margin:0 auto;padding:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+h2{font-size:16px;margin:0 0 10px}
+.live{display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center}
+.big{width:120px;height:120px;border-radius:18px;display:grid;place-content:center;text-align:center;background:var(--chip);border:2px solid var(--line)}
+.big b{font-size:40px;line-height:1}.big span{font-size:12px;color:var(--muted)}
+.lv1 .big{border-color:var(--det)}.lv2 .big{border-color:var(--cau);background:color-mix(in srgb,var(--cau) 14%,var(--panel))}
+.lv3 .big{border-color:var(--war);background:color-mix(in srgb,var(--war) 20%,var(--panel));animation:bl 1s infinite}
+@keyframes bl{50%{background:var(--panel)}}
+.kv{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.kv div{background:var(--chip);border-radius:10px;padding:6px 10px}.kv span{display:block;font-size:12px;color:var(--muted)}
+.kv b{font-size:18px;font-variant-numeric:tabular-nums}
+canvas{width:100%;height:150px;display:block;margin-top:12px}
+table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left}
+th{font-size:12px;color:var(--muted);font-weight:500}tr.ev{cursor:pointer}tr.ev:hover{background:var(--chip)}
+.tag{display:inline-block;padding:0 8px;border-radius:99px;font-size:12px;font-weight:600;background:var(--chip)}
+.t3{background:var(--war);color:#fff}.t2{background:var(--cau);color:#fff}.t1{background:var(--det);color:#fff}
+label{display:block;margin:10px 0 4px;font-size:13px;color:var(--muted)}
+input,select{width:100%;font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink)}
+input[type=checkbox]{width:auto;margin-right:8px}.check{display:flex;align-items:center;margin:10px 0;color:var(--ink);font-size:14px}
+button.btn{font:inherit;font-weight:600;border:0;border-radius:99px;padding:9px 18px;background:var(--ink);color:var(--bg);cursor:pointer;margin:6px 6px 0 0}
+button.sub{background:var(--chip);color:var(--ink)}button.danger{background:var(--war);color:#fff}
+details{border:1px solid var(--line);border-radius:12px;padding:8px 12px;margin:10px 0}summary{cursor:pointer;font-weight:600}
+.hint{font-size:12.5px;color:var(--muted);margin:6px 0 0}.msg{min-height:1.4em;font-size:14px;color:var(--acc)}
+.note{font-size:12.5px;color:var(--muted)}a{color:inherit}
+[hidden]{display:none!important}
+@media (max-width:520px){.live{grid-template-columns:1fr}.big{width:100%;height:96px}}
+</style>
+</head>
+<body>
+<header><b>QuakeScope</b><small id="hd">接続しています…</small></header>
+<nav id="tabs"><button data-t="live" class="on">いまの揺れ</button><button data-t="events">記録</button><button data-t="logs">通知の履歴</button><button data-t="settings">設定</button><button data-t="about">本体</button></nav>
+<main>
+<section id="setup" hidden>
+  <div class="card"><h2>はじめの設定</h2>
+  <p class="hint">本体をつなぐ Wi-Fi と、設定を変えるときのパスワードを決めます。保存すると本体が再起動し、家の Wi-Fi につながります。</p>
+  <label>Wi-Fi のネットワーク</label><select id="s-ssid"><option value="">探しています…</option></select>
+  <input id="s-ssid2" placeholder="一覧にないときは、ここに名前を入力" style="margin-top:6px">
+  <label>Wi-Fi のパスワード</label><input id="s-wpass" type="password" autocomplete="off">
+  <label>置く場所の名前（通知に入ります）</label><input id="s-place" value="自宅">
+  <label>設定用のパスワード（8 文字以上）</label><input id="s-admin" type="password" autocomplete="new-password">
+  <p class="hint">通知先（LINE・Telegram・Discord・メール）は、つながったあとに「設定」から登録できます。</p>
+  <button class="btn" id="s-save">保存して再起動</button><div class="msg" id="s-msg"></div></div>
+</section>
+
+<section id="live">
+  <div class="card" id="livecard"><div class="live">
+    <div class="big"><span id="lvname">平常</span><b id="shindo">—</b><span>震度相当</span></div>
+    <div class="kv">
+      <div><span>いまの揺れ（計測震度の推定）</span><b id="inow">—</b></div>
+      <div><span>この揺れの最大</span><b id="iev">—</b></div>
+      <div><span>最大加速度</span><b id="pga">—</b></div>
+      <div><span>センサー</span><b id="sens">—</b></div>
+    </div></div>
+    <canvas id="graph" width="700" height="150"></canvas>
+    <p class="note">グラフ: 直近 12.8 秒の揺れの大きさ（gal、対数目盛）。点線は震度 1・3・5 弱相当のおよその大きさ。</p>
+  </div>
+  <div class="card"><h2>警報の目安</h2>
+    <p class="hint"><span class="tag t1">揺れ検知</span> 震度 1 相当〜（短い音）　<span class="tag t2">注意</span> <span id="g-c">震度 3 相当〜</span>（警報音・通知）　<span class="tag t3">警報</span> <span id="g-w">震度 5 弱相当〜</span>（強い警報音・通知）</p>
+    <p class="note">本機の値は、置いた場所で測った揺れからの推定です。気象庁の発表する震度ではありません。</p>
+  </div>
+</section>
+
+<section id="events" hidden>
+  <div class="card"><h2>揺れの記録</h2>
+  <table><thead><tr><th>揺れ始め</th><th>震度相当</th><th>時間</th><th>最大加速度</th></tr></thead><tbody id="evlist"><tr><td colspan="4">読み込んでいます…</td></tr></tbody></table>
+  <canvas id="wave" width="700" height="240" hidden></canvas><p class="note" id="wavenote"></p></div>
+</section>
+
+<section id="logs" hidden>
+  <div class="card"><h2>通知の履歴</h2><table><tbody id="loglist"></tbody></table></div>
+</section>
+
+<section id="settings" hidden>
+  <div class="card" id="login"><h2>設定</h2><label>設定用のパスワード</label><input id="pw" type="password" autocomplete="current-password">
+  <button class="btn" id="loginbtn">開く</button><div class="msg" id="loginmsg"></div></div>
+  <div id="form" hidden>
+  <div class="card"><h2>本体</h2>
+    <label>置く場所の名前</label><input id="f-place">
+    <div class="check"><input type="checkbox" id="f-beep">揺れ始め（震度 1 相当〜）で短い音を鳴らす</div>
+    <label>音の大きさ</label><input type="range" id="f-volume" min="0" max="100">
+    <label>画面の高さ</label><select id="f-oled"><option value="64">128×64</option><option value="32">128×32</option></select>
+    <details><summary>警報の震度（くわしい設定）</summary>
+      <label>注意（計測震度）</label><select id="f-ic"><option value="1.5">震度 2 相当〜</option><option value="2.5">震度 3 相当〜（おすすめ）</option><option value="3.5">震度 4 相当〜</option></select>
+      <label>警報（計測震度）</label><select id="f-iw"><option value="3.5">震度 4 相当〜</option><option value="4.5">震度 5 弱相当〜（おすすめ）</option><option value="5.0">震度 5 強相当〜</option></select>
+    </details>
+  </div>
+  <div class="card"><h2>通知</h2>
+    <label>通知する揺れ</label><select id="f-nmin"><option value="2">注意（震度 3 相当〜）から</option><option value="3">警報（震度 5 弱相当〜）だけ</option></select>
+    <div class="check"><input type="checkbox" id="f-nend">揺れが収まったら、まとめも送る</div>
+    <p class="hint">パスワードやトークンは表示しません。変えるときだけ入力してください（空欄なら今のまま）。</p>
+    <details><summary>LINE</summary><div class="check"><input type="checkbox" id="f-lon">LINE で送る</div>
+      <label>チャネルアクセストークン（長期）</label><input id="f-ltok" type="password" autocomplete="off">
+      <label>送り先のユーザー ID（U から始まる）</label><input id="f-luser" autocomplete="off">
+      <p class="hint">LINE Developers で Messaging API のチャネルを作り、その公式アカウントを友だちに追加します。</p></details>
+    <details><summary>Telegram</summary><div class="check"><input type="checkbox" id="f-ton">Telegram で送る</div>
+      <label>Bot のトークン</label><input id="f-ttok" type="password" autocomplete="off">
+      <label>チャット ID</label><input id="f-tchat" autocomplete="off">
+      <p class="hint">@BotFather で Bot を作り、Bot に一度話しかけてからチャット ID を調べます。</p></details>
+    <details><summary>Discord</summary><div class="check"><input type="checkbox" id="f-don">Discord で送る</div>
+      <label>Webhook の URL</label><input id="f-dhook" type="password" autocomplete="off">
+      <p class="hint">チャンネルの設定 → 連携サービス → ウェブフック で作った URL を貼ります。</p></details>
+    <details><summary>メール</summary><div class="check"><input type="checkbox" id="f-mon">メールで送る</div>
+      <label>SMTP サーバー</label><input id="f-mhost" placeholder="smtp.gmail.com">
+      <label>ポート</label><select id="f-mport"><option value="465">465（SSL）</option><option value="587">587（STARTTLS）</option></select>
+      <label>ユーザー名（送信元のアドレス）</label><input id="f-muser" autocomplete="off">
+      <label>パスワード（Gmail はアプリ パスワード）</label><input id="f-mpass" type="password" autocomplete="off">
+      <label>宛先（カンマ区切りで複数）</label><input id="f-mto" autocomplete="off"></details>
+    <button class="btn" id="save">保存</button><button class="btn sub" id="tnotify">テスト通知を送る</button><div class="msg" id="smsg"></div>
+  </div>
+  <div class="card"><h2>Wi-Fi と管理</h2>
+    <label>Wi-Fi のネットワーク名（変えるときだけ）</label><input id="f-ssid" autocomplete="off">
+    <label>Wi-Fi のパスワード</label><input id="f-wpass" type="password" autocomplete="off">
+    <label>新しい設定用のパスワード（変えるときだけ、8 文字以上）</label><input id="f-admin" type="password" autocomplete="new-password">
+    <button class="btn" id="save2">保存</button>
+    <div style="margin-top:12px"><button class="btn sub" id="talarm">警報音のテスト</button><button class="btn sub" id="calib">向きを測り直す</button><button class="btn sub" id="reboot">再起動</button><button class="btn sub" id="clearev">記録を消す</button><button class="btn danger" id="reset">初期状態に戻す</button></div>
+    <p class="hint">ファームウェアの更新: <a href="/update">/update</a>（ユーザー名 admin と設定用のパスワード）</p><div class="msg" id="amsg"></div>
+  </div></div>
+</section>
+
+<section id="about" hidden>
+  <div class="card"><h2>本体</h2><table><tbody id="info"></tbody></table>
+  <p class="note">本体のボタン: 短く押す → 警報音を止める／IP アドレスを表示。3 秒 → 警報音のテスト。10 秒 → 初期状態に戻す。</p></div>
+</section>
+</main>
+<script>
+const $=id=>document.getElementById(id);let S={},auth=sessionStorage.getItem('qa')||'',tab='live';
+const LV=['平常','揺れ検知','注意','警報'];
+function fmtTime(e){if(!e)return'—';const d=new Date(e*1000);return d.toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'})}
+async function api(p,opt={}){opt.headers=Object.assign({},opt.headers||{},auth?{Authorization:'Basic '+auth}:{});const r=await fetch(p,opt);if(r.status==401)throw new Error('パスワードが違います');if(!r.ok)throw new Error('エラー '+r.status);return r}
+function show(t){tab=t;for(const b of document.querySelectorAll('#tabs button'))b.classList.toggle('on',b.dataset.t==t);for(const s of ['live','events','logs','settings','about'])$(s).hidden=s!=t||S.setup;if(t=='events')loadEvents();if(t=='logs')loadLogs()}
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>show(b.dataset.t));
+function jr(i){return Math.floor(Math.round(i*100)/10+1e-9)/10}
+function shindoOf(i){i=jr(i);if(i<0.5)return'0';const t=[[1.5,'1'],[2.5,'2'],[3.5,'3'],[4.5,'4'],[5,'5弱'],[5.5,'5強'],[6,'6弱'],[6.5,'6強']];for(const [v,l] of t)if(i<v)return l;return'7'}
+function drawGraph(h){const c=$('graph'),g=c.getContext('2d'),W=c.width,H=c.height,cs=getComputedStyle(document.body);g.clearRect(0,0,W,H);
+ const y=v=>{const l=(Math.log10(Math.max(v,0.1))+1)/(Math.log10(300)+1);return H-4-l*(H-8)};g.strokeStyle=cs.getPropertyValue('--line');g.setLineDash([4,4]);
+ for(const a of [0.6,6,60]){g.beginPath();g.moveTo(0,y(a));g.lineTo(W,y(a));g.stroke()}g.setLineDash([]);
+ g.strokeStyle=cs.getPropertyValue('--acc');g.lineWidth=2;g.beginPath();h.forEach((v,i)=>{const x=i/(h.length-1)*W;i?g.lineTo(x,y(v/10)):g.moveTo(x,y(v/10))});g.stroke()}
+async function poll(){try{const r=await fetch('/api/status');S=await r.json();render()}catch(e){$('hd').textContent='本体に接続できません'}setTimeout(poll,S.setup?3000:500)}
+function render(){const e=S.engine||{};$('hd').innerHTML=(S.place||'')+'<br>'+(S.setup?'はじめの設定':(S.time||''));
+ if(S.setup){$('setup').hidden=false;$('tabs').hidden=true;for(const s of ['live','events','logs','settings','about'])$(s).hidden=true;if(!scanned)scan();return}
+ $('livecard').className='card lv'+(e.level||0);$('lvname').textContent=LV[e.level||0];
+ $('shindo').textContent=e.inEvent?shindoOf(e.iEvent):(e.iNow>=0.5?shindoOf(e.iNow):'—');
+ $('inow').textContent=e.iNow>-1?jr(e.iNow).toFixed(1):'0.0';$('iev').textContent=e.inEvent?jr(e.iEvent).toFixed(1):'—';
+ $('pga').textContent=e.inEvent?e.pga.toFixed(1)+' gal':'—';$('sens').textContent=!e.calibrated?'向きを測定中':e.sensorOk?'正常（平常時 '+(e.noiseI>-5?e.noiseI.toFixed(1):'—')+'）':'異常';
+ $('g-c').textContent='計測震度 '+(S.ic||2.5)+'〜';$('g-w').textContent='計測震度 '+(S.iw||4.5)+'〜';
+ if(S.hist)drawGraph(S.hist);
+ $('info').innerHTML=[['名前',S.name],['ファームウェア','v'+S.version],['Wi-Fi',(S.wifi&&S.wifi.ssid||'')+'（'+(S.wifi&&S.wifi.rssi||'')+' dBm）'],['IP アドレス',S.wifi&&S.wifi.ip],['起動してから',Math.round((S.uptime||0)/60)+' 分'],['記録の保存',Math.round((S.fsUsed||0)/1024)+' / '+Math.round((S.fsTotal||0)/1024)+' KB'],['送信待ちの通知',S.pending]].map(r=>'<tr><td>'+r[0]+'</td><td>'+(r[1]??'')+'</td></tr>').join('')}
+let scanned=false;async function scan(){scanned=true;try{const r=await fetch('/api/scan');const l=await r.json();$('s-ssid').innerHTML='<option value="">選んでください</option>'+l.map(n=>'<option>'+n.ssid.replace(/</g,'&lt;')+'</option>').join('')}catch(e){$('s-ssid').innerHTML='<option value="">見つかりません</option>'}}
+$('s-save').onclick=async()=>{const ssid=$('s-ssid2').value||$('s-ssid').value,admin=$('s-admin').value;if(!ssid)return $('s-msg').textContent='Wi-Fi を選んでください';if(admin.length<8)return $('s-msg').textContent='設定用のパスワードは 8 文字以上にしてください';
+ const b=new URLSearchParams({ssid,wpass:$('s-wpass').value,place:$('s-place').value,admin});await fetch('/api/setup',{method:'POST',body:b});$('s-msg').textContent='保存しました。本体が再起動します。スマホを家の Wi-Fi に戻して http://'+(S.host||'quakescope.local')+'/ を開いてください（開けないときは、本体のボタンを短く押すと IP アドレスが出ます）。'};
+let evs=[];async function loadEvents(){try{evs=await (await fetch('/api/events')).json();$('evlist').innerHTML=evs.length?evs.map((e,i)=>'<tr class="ev" data-i="'+i+'"><td>'+fmtTime(e.start)+'</td><td><span class="tag t'+e.level+'">'+e.shindo+'</span> '+jr(e.intensity).toFixed(1)+'</td><td>'+Math.round(e.duration)+' 秒</td><td>'+e.pga.toFixed(1)+' gal</td></tr>').join(''):'<tr><td colspan="4">まだ記録はありません</td></tr>';
+ document.querySelectorAll('tr.ev').forEach(r=>r.onclick=()=>wave(evs[r.dataset.i]))}catch(e){}}
+async function wave(e){const r=await fetch('/api/event?id='+e.id);if(!r.ok){$('wavenote').textContent='この記録の波形は、容量のため消えています（新しい 8 件だけ残します）';$('wave').hidden=true;return}const buf=await r.arrayBuffer();const a=new Int16Array(buf),n=a.length/3,c=$('wave'),g=c.getContext('2d'),W=c.width,H=c.height;c.hidden=false;g.clearRect(0,0,W,H);
+ let mx=1;for(let i=0;i<a.length;i++)mx=Math.max(mx,Math.abs(a[i]));const cols=['#d9661a','#1d6fd1','#12865a'],lab=['東西/X','南北/Y','上下/Z'];
+ for(let k=0;k<3;k++){const y0=H/6+k*H/3;g.strokeStyle=cols[k];g.beginPath();for(let i=0;i<n;i+=Math.max(1,Math.floor(n/W))){const x=i/n*W,y=y0-a[i*3+k]/mx*H/6.5;i?g.lineTo(x,y):g.moveTo(x,y)}g.stroke();g.fillStyle=cols[k];g.fillText(lab[k],4,y0-H/7)}
+ $('wavenote').textContent=fmtTime(e.start)+' の揺れ（'+(n/(e.fs||50)).toFixed(0)+' 秒、1 成分の最大 '+(mx/10).toFixed(1)+' gal）'}
+async function loadLogs(){try{const l=await (await fetch('/api/logs')).json();$('loglist').innerHTML=l.length?l.map(x=>'<tr><td><b>'+x.ch+'</b> <span class="tag '+(x.ok?'':'t3')+'">'+(x.ok?'送信':'失敗 '+x.code)+'</span><br><small>'+fmtTime(x.t)+'</small><br>'+x.title.replace(/</g,'&lt;')+'</td></tr>').join(''):'<tr><td>まだありません</td></tr>'}catch(e){}}
+const F=['place','oled','ic','iw','nmin','ltok','luser','ttok','tchat','dhook','mhost','mport','muser','mpass','mto','ssid','wpass','admin'],C=['beep','nend','lon','ton','don','mon'];
+$('loginbtn').onclick=async()=>{auth=btoa(unescape(encodeURIComponent('admin:'+$('pw').value)));try{const s=await (await api('/api/settings')).json();sessionStorage.setItem('qa',auth);
+ for(const k of F)if($('f-'+k))$('f-'+k).value=s[k]===true?'':(s[k]??'');for(const k of C)$('f-'+k).checked=!!s[k];$('f-volume').value=s.volume;$('login').hidden=true;$('form').hidden=false}catch(e){$('loginmsg').textContent=e.message;auth=''}};
+async function save(m){const b=new URLSearchParams();for(const k of F){const v=$('f-'+k)&&$('f-'+k).value;if(v!==undefined&&v!=='')b.set(k,v)}for(const k of C)b.set(k,$('f-'+k).checked?'1':'0');b.set('volume',$('f-volume').value);
+ try{await api('/api/settings',{method:'POST',body:b});$(m).textContent='保存しました';for(const k of ['ltok','ttok','dhook','mpass','wpass','admin'])$('f-'+k).value=''}catch(e){$(m).textContent=e.message}}
+$('save').onclick=()=>save('smsg');$('save2').onclick=()=>save('amsg');
+const act=(id,p,m,q)=>$(id).onclick=async()=>{if(q&&!confirm(q))return;try{await api(p,{method:'POST'});$(m).textContent='実行しました'}catch(e){$(m).textContent=e.message}};
+act('tnotify','/api/test/notify','smsg');act('talarm','/api/test/alarm','amsg');act('calib','/api/calibrate','amsg','本体を動かさずに、平らな場所に置いた状態で実行してください。');act('reboot','/api/reboot','amsg');
+act('clearev','/api/events/clear','amsg','揺れの記録をすべて消しますか？');act('reset','/api/factory-reset','amsg','Wi-Fi や通知先を含め、すべての設定を消します。よろしいですか？');
+if(auth)$('pw').value='';poll();
+</script>
+</body>
+</html>

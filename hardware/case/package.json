@@ -1,0 +1,8 @@
+{
+  "name": "quakescope-case",
+  "private": true,
+  "description": "QuakeScope のケース（STL）を作る",
+  "type": "module",
+  "scripts": { "build": "node case.mjs" },
+  "dependencies": { "manifold-3d": "3.2.1" }
+}

@@ -1,0 +1,10 @@
+# ビルドの生成物
+build/
+*.o
+core/tests/test_core
+core/tools/qs_cli
+__pycache__/
+tools/*.npy
+hardware/case/node_modules/
+hardware/case/package-lock.json
+.DS_Store
