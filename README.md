@@ -1,5 +1,7 @@
 # QuakeScope
 
+[![CI](https://github.com/haru-ki417/QuakeScope/actions/workflows/ci.yml/badge.svg)](https://github.com/haru-ki417/QuakeScope/actions/workflows/ci.yml)
+
 **置いた場所の揺れを測り、気象庁の「計測震度」と同じ考え方で震度相当を出す、ESP32 の揺れ検知アラーム。**
 強い揺れでは警報音を鳴らし、LINE・Telegram・Discord・メールに知らせます。判定エンジンは C++ で書き、本体とブラウザー（WebAssembly）で同じものを動かしています。
 
